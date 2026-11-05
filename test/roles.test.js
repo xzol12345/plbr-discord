@@ -74,5 +74,22 @@ test('all bot modules load', () => {
 	require('../src/bot/leaderboards');
 	require('../src/bot/index');
 	const { definitions } = require('../src/bot/commands');
-	assert.deepEqual(definitions.map((d) => d.name).sort(), ['leaderboard', 'leaderboard-refresh', 'link', 'rank', 'refresh', 'stats']);
+	assert.deepEqual(definitions.map((d) => d.name).sort(), ['leaderboard', 'leaderboard-refresh', 'link', 'nuke', 'rank', 'refresh', 'stats']);
+});
+
+test('/nuke refuses channels it must not touch', () => {
+	const { ChannelType, PermissionFlagsBits } = require('discord.js');
+	const { blockedReason } = require('../src/bot/nuke');
+	const me = {};
+	const guild = { rulesChannelId: 'rules', publicUpdatesChannelId: 'upd', members: { me } };
+	const ch = (id, type = ChannelType.GuildText, canManage = true) => ({
+		id, type, deletable: canManage,
+		permissionsFor: () => ({ has: (p) => p !== PermissionFlagsBits.ManageChannels || canManage }),
+	});
+	assert.equal(blockedReason(ch('general'), guild), null);
+	assert.match(blockedReason(ch('rules'), guild), /Rules/);
+	assert.match(blockedReason(ch('upd'), guild), /Community Updates/);
+	assert.match(blockedReason(ch('t', ChannelType.PublicThread), guild), /Only text/);
+	assert.match(blockedReason(ch('general', ChannelType.GuildText, false), guild), /Manage Channels/);
+	assert.match(blockedReason(null, guild), /Only text/);
 });

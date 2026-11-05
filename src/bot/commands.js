@@ -9,6 +9,7 @@ const embeds = require('./embeds');
 const leaderboards = require('./leaderboards');
 const reconcile = require('../sync/reconcile');
 const { BloxlinkError } = require('../services/bloxlink');
+const { nuke } = require('./nuke');
 
 const definitions = [
 	new SlashCommandBuilder().setName('stats').setDescription('View PL:BR statistics')
@@ -22,6 +23,8 @@ const definitions = [
 	new SlashCommandBuilder().setName('link').setDescription('Link your Roblox account (through Bloxlink)'),
 	new SlashCommandBuilder().setName('leaderboard-refresh').setDescription('Re-post / update the leaderboard channels now')
 		.setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+	new SlashCommandBuilder().setName('nuke').setDescription('Admins: wipe this channel by re-creating it with the same settings')
+		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ].map((c) => c.toJSON());
 
 const NOT_LINKED = 'You haven\'t verified a Roblox account with **Bloxlink** in this server yet.\nUse **/link** to see how - it takes about a minute.';
@@ -118,6 +121,8 @@ const handlers = {
 			'Your Roblox **UserId** is what links you, so changing your Roblox username later is fine.',
 		].join('\n'))] });
 	},
+
+	nuke,
 
 	async 'leaderboard-refresh'(i) {
 		await i.deferReply({ flags: MessageFlags.Ephemeral });

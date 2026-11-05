@@ -16,10 +16,12 @@ code or git.
      paste it anywhere else.
 4. **Invite the bot.** Replace `APP_ID` in this link, open it, and pick your server:
    ```
-   https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot%20applications.commands&permissions=268520448
+   https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot%20applications.commands&permissions=268520464
    ```
-   `268520448` grants View Channels, Send Messages, Embed Links, Read Message History and
-   Manage Roles. That's all the bot needs. It does **not** need Administrator.
+   `268520464` grants View Channels, Send Messages, Embed Links, Read Message History,
+   Manage Roles and Manage Channels (Manage Channels is only for `/nuke`). It does **not**
+   need Administrator, unless you `/nuke` a channel whose overrides use permissions the bot
+   doesn't have itself.
 5. **Role order:** Server Settings → Roles → drag the bot's role **above** all PL:BR
    progression roles. The bot can only manage roles below its own.
 6. **Copy IDs.** User Settings → Advanced → Developer Mode on. Then right-click to copy:

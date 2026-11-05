@@ -40,6 +40,7 @@ test/                 npm test (needs TEST_DATABASE_URL)
 | `/refresh` | Re-checks Bloxlink and saved stats, then fixes your roles (once per minute) |
 | `/link` | How to verify with Bloxlink, or which account you're verified as |
 | `/leaderboard-refresh` | Admins (Manage Server): update the leaderboard channels now |
+| `/nuke` | Administrators: wipe the current channel by re-creating it in the same place with the same permissions (asks to confirm; won't touch leaderboard, Rules or Community Updates channels) |
 
 Deaths are still synced and stored, but `/stats` doesn't show deaths or K/D: the game only
 started counting deaths recently, so older totals would be wrong.
