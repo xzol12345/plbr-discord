@@ -98,6 +98,7 @@ test('welcome DM mentions Bloxlink verification first', () => {
 	const { welcomeMessage } = require('../src/bot/welcome');
 	const text = welcomeMessage('PL:BR').embeds[0].toJSON().description;
 	assert.match(text, /Verify with Bloxlink first/);
-	assert.ok(text.indexOf('/verify') < text.indexOf('/refresh'));
+	assert.ok(text.indexOf('/verify') < text.indexOf('/link'));
+	assert.ok(!text.includes('/refresh'));
 	assert.ok(text.length < 4096);
 });
