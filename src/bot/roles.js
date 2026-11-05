@@ -19,8 +19,10 @@ async function ensureRoles(guild) {
 	for (const [kind, tiers] of [['kills', KILL_TIERS], ['wins', WIN_TIERS]]) {
 		for (const tier of tiers) {
 			let role = roles.find((r) => r.name === tier.name);
-			if (!role && me.permissions.has(PermissionFlagsBits.ManageRoles)) {
-				role = await guild.roles.create({ name: tier.name, color: tier.color, permissions: [], hoist: false, mentionable: false, reason: 'PL:BR progression role' });
+			if (!role && tier.custom) {
+				console.warn(`[roles] no role named "${tier.name}" in the server - check ${kind === 'kills' ? 'KILL_ROLES' : 'WIN_ROLES'} (names must match exactly)`);
+			} else if (!role && me.permissions.has(PermissionFlagsBits.ManageRoles)) {
+				role = await guild.roles.create({ name: tier.name, colors: { primaryColor: tier.color }, permissions: [], hoist: false, mentionable: false, reason: 'PL:BR progression role' });
 				console.log(`[roles] created role ${tier.name}`);
 			}
 			if (role) {
@@ -32,6 +34,7 @@ async function ensureRoles(guild) {
 		}
 	}
 	roleIds = ids;
+	console.log(`[roles] using ${ids.kills.size} kill role(s) and ${ids.wins.size} win role(s)`);
 	return ids;
 }
 

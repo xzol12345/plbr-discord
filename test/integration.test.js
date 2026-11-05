@@ -14,7 +14,7 @@ process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 const db = require('../src/db/pool');
 const store = require('../src/stats/store');
 const { kdRatio, formatKd } = require('../src/stats/kd');
-const { KILL_TIERS, WIN_TIERS, tierFor } = require('../src/stats/tiers');
+const { KILL_TIERS, WIN_TIERS, parseTiers, tierFor } = require('../src/stats/tiers');
 const { createApp } = require('../src/api/server');
 const events = require('../src/events');
 
@@ -57,6 +57,16 @@ test('tiers: exactly one per progression, independent', () => {
 	assert.equal(tierFor(WIN_TIERS, 10).name, 'Survivor');
 	assert.equal(tierFor(WIN_TIERS, 100).name, 'Elite Champion');
 	assert.equal(tierFor(WIN_TIERS, 500).name, 'PL:BR Legend');
+});
+
+test('custom role lists from env vars', () => {
+	assert.equal(parseTiers(undefined, 'X'), null);
+	assert.deepEqual(parseTiers('none', 'X'), []);
+	const t = parseTiers(' 500 = Killer Pro ;0=Newbie;100=Fighter', 'X');
+	assert.deepEqual(t.map((x) => [x.min, x.name]), [[0, 'Newbie'], [100, 'Fighter'], [500, 'Killer Pro']]);
+	assert.equal(tierFor(t, 499).name, 'Fighter');
+	assert.throws(() => parseTiers('abc', 'X'));
+	assert.throws(() => parseTiers('0=A;0=B', 'X'));
 });
 
 test('API rejects missing / wrong keys', async () => {

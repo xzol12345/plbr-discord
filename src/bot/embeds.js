@@ -28,7 +28,7 @@ async function statsEmbed(player, ranks) {
 			{ name: '🎯 K/D Ratio', value: `**${formatKd(player.kills, player.deaths)}**`, inline: true },
 			{ name: '📈 Kill Rank', value: `**#${fmt(ranks.kills)}**`, inline: true },
 			{ name: '📈 Win Rank', value: `**#${fmt(ranks.wins)}**`, inline: true },
-			{ name: 'Ranks', value: `${killTier ? killTier.name : '—'} • ${winTier ? winTier.name : 'no win rank yet'}` },
+			{ name: 'Ranks', value: WIN_TIERS.length ? `${killTier ? killTier.name : '—'} • ${winTier ? winTier.name : 'no win rank yet'}` : (killTier ? killTier.name : '—') },
 		);
 	if (avatar) e.setThumbnail(avatar);
 	if (player.lastSyncedAt) e.setFooter({ text: `${config.brandName} • last synced` }).setTimestamp(new Date(player.lastSyncedAt));
@@ -52,10 +52,8 @@ async function rankEmbed(player) {
 		.setAuthor({ name: `${config.brandName} RANKS` })
 		.setTitle(player.username)
 		.setURL(roblox.profileUrl(player.userId))
-		.addFields(
-			{ name: '💀 Kill progression', value: progressLine(KILL_TIERS, player.kills, 'kills') },
-			{ name: '🏆 Win progression', value: progressLine(WIN_TIERS, player.wins, 'wins') },
-		);
+		.addFields({ name: '💀 Kill progression', value: progressLine(KILL_TIERS, player.kills, 'kills') });
+	if (WIN_TIERS.length) e.addFields({ name: '🏆 Win progression', value: progressLine(WIN_TIERS, player.wins, 'wins') });
 	if (avatar) e.setThumbnail(avatar);
 	return e;
 }
