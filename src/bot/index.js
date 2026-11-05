@@ -11,6 +11,8 @@ const reconcile = require('../sync/reconcile');
 const store = require('../stats/store');
 const bloxlink = require('../services/bloxlink');
 const welcome = require('./welcome');
+const logChannels = require('./logChannels');
+const { resultLog } = require('./ban');
 
 async function registerCommands() {
 	const rest = new REST({ version: '10' }).setToken(config.discordToken);
@@ -66,6 +68,7 @@ async function startBot() {
 		await roles.ensureRoles(guild);
 		await registerCommands().catch((err) => console.error('[bot] command registration failed', err.message));
 		await leaderboards.update(client, { force: true });
+		await logChannels.setup(c, guild).catch((err) => console.error('[logs] setup failed', err.message));
 		console.log(`[welcome] welcome DMs are ${config.welcomeDms ? 'ON' : 'off (set WELCOME_DMS=true)'}`);
 		if (config.welcomeTestUserId) {
 			const user = await c.users.fetch(config.welcomeTestUserId).catch(() => null);
@@ -73,6 +76,11 @@ async function startBot() {
 			else console.log(`[welcome] test user ${config.welcomeTestUserId} not found`);
 		}
 	});
+
+	// game logs (anti-cheat kicks, panel actions) -> their channels
+	events.on('gameLogs', (logs) => { for (const l of logs) logChannels.push(l.channel, l.embed); });
+	// every finished Discord /ban is also logged in the Manual channel
+	events.on('commandFinished', (cmd) => { if (cmd.kind === 'ban') logChannels.push('panel', resultLog(cmd)); });
 
 	client.on(Events.GuildMemberAdd, (member) => {
 		if (!config.welcomeDms || member.guild.id !== config.discordGuildId || member.user.bot) return;

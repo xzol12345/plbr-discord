@@ -74,7 +74,7 @@ test('all bot modules load', () => {
 	require('../src/bot/leaderboards');
 	require('../src/bot/index');
 	const { definitions } = require('../src/bot/commands');
-	assert.deepEqual(definitions.map((d) => d.name).sort(), ['leaderboard', 'leaderboard-refresh', 'link', 'nuke', 'rank', 'refresh', 'stats']);
+	assert.deepEqual(definitions.map((d) => d.name).sort(), ['ban', 'leaderboard', 'leaderboard-refresh', 'link', 'nuke', 'rank', 'refresh', 'stats']);
 });
 
 test('/nuke refuses channels it must not touch', () => {
@@ -101,4 +101,14 @@ test('welcome DM mentions Bloxlink verification first', () => {
 	assert.ok(text.indexOf('/verify') < text.indexOf('/link'));
 	assert.ok(!text.includes('/refresh'));
 	assert.ok(text.length < 4096);
+});
+
+test('/ban input checks', () => {
+	const { validate } = require('../src/bot/ban');
+	assert.equal(validate('Good_Name1', 'cheating', 'normal'), null);
+	assert.equal(validate('Good_Name1', 'cheating', 'ingame'), null);
+	assert.match(validate('ab', 'x', 'normal'), /valid Roblox username/);
+	assert.match(validate('bad name!', 'x', 'normal'), /valid Roblox username/);
+	assert.match(validate('Good_Name1', '  ', 'normal'), /reason/);
+	assert.match(validate('Good_Name1', 'x', 'perma'), /Unknown/);
 });

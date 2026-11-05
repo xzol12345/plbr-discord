@@ -40,10 +40,17 @@ test/                 npm test (needs TEST_DATABASE_URL)
 | `/refresh` | Re-checks Bloxlink and saved stats, then fixes your roles (once per minute) |
 | `/link` | How to verify with Bloxlink, or which account you're verified as |
 | `/leaderboard-refresh` | Admins (Manage Server): update the leaderboard channels now |
+| `/ban player reason [type]` | Administrators: ban a Roblox player in the game (the game's own BanService, Normal or In-Game ban). Queued for a running game server to carry out; the result is also posted in the Manual channel |
 | `/nuke` | Administrators: wipe the current channel by re-creating it in the same place with the same permissions (asks to confirm; won't touch leaderboard, Rules or Community Updates channels) |
 
 Deaths are still synced and stored, but `/stats` doesn't show deaths or K/D: the game only
 started counting deaths recently, so older totals would be wrong.
+
+## Game logs
+
+The game sends anti-cheat kicks and every Owner / Admin / Content Creator panel action to
+`POST /v1/roblox/logs` (same key as the stats). The bot posts them in the anti-cheat and
+Manual channels (`ANTICHEAT_LOG_CHANNEL`, `PANEL_LOG_CHANNEL`). Logs never ping anyone.
 
 ## Roles
 

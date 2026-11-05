@@ -34,6 +34,9 @@ const config = {
 	winLeaderboardChannelId: str('WIN_LEADERBOARD_CHANNEL_ID'),
 	leaderboardIntervalMinutes: int('LEADERBOARD_INTERVAL_MINUTES', 10),
 	roleReconcileMinutes: int('ROLE_RECONCILE_MINUTES', 30),
+	// game log channels: a channel ID or an exact name (unset = guessed from the name)
+	anticheatLogChannel: str('ANTICHEAT_LOG_CHANNEL'),
+	panelLogChannel: str('PANEL_LOG_CHANNEL'),
 	// welcome DM for new members (needs the Server Members Intent turned on in the Developer Portal)
 	welcomeDms: str('WELCOME_DMS', 'false').toLowerCase() === 'true',
 	// optional: DM this user ID the welcome message once at startup, to preview it

@@ -10,6 +10,7 @@ const leaderboards = require('./leaderboards');
 const reconcile = require('../sync/reconcile');
 const { BloxlinkError } = require('../services/bloxlink');
 const { nuke } = require('./nuke');
+const { ban } = require('./ban');
 
 const definitions = [
 	new SlashCommandBuilder().setName('stats').setDescription('View PL:BR statistics')
@@ -23,6 +24,12 @@ const definitions = [
 	new SlashCommandBuilder().setName('link').setDescription('Link your Roblox account (through Bloxlink)'),
 	new SlashCommandBuilder().setName('leaderboard-refresh').setDescription('Re-post / update the leaderboard channels now')
 		.setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+	new SlashCommandBuilder().setName('ban').setDescription('Admins: ban a player in PL:BR (the game)')
+		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+		.addStringOption((o) => o.setName('player').setDescription('Their Roblox username').setRequired(true).setMinLength(3).setMaxLength(20))
+		.addStringOption((o) => o.setName('reason').setDescription('Why (shown to them on the ban screen)').setRequired(true).setMaxLength(120))
+		.addStringOption((o) => o.setName('type').setDescription('Normal Ban (default) or In-Game Ban (lobby only)')
+			.addChoices({ name: 'Normal Ban', value: 'normal' }, { name: 'In-Game Ban (lobby only)', value: 'ingame' })),
 	new SlashCommandBuilder().setName('nuke').setDescription('Admins: wipe this channel by re-creating it with the same settings')
 		.setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ].map((c) => c.toJSON());
@@ -123,6 +130,7 @@ const handlers = {
 	},
 
 	nuke,
+	ban,
 
 	async 'leaderboard-refresh'(i) {
 		await i.deferReply({ flags: MessageFlags.Ephemeral });

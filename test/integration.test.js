@@ -22,7 +22,7 @@ let server;
 let base;
 
 test.before(async () => {
-	await db.query('DROP TABLE IF EXISTS players, links, sync_log, bot_state, schema_migrations CASCADE');
+	await db.query('DROP TABLE IF EXISTS players, links, sync_log, bot_state, game_commands, schema_migrations CASCADE');
 	await db.migrate();
 	server = createApp().listen(0);
 	base = `http://127.0.0.1:${server.address().port}`;
@@ -162,4 +162,64 @@ test('staff reset: only all-zero resets may lower stats; names kept', async () =
 	r = await (await post({ players: [{ userId: 424242, kills: 0, wins: 0, deaths: 0, revision: 1, reset: true }] })).json();
 	assert.equal(r.results[0].outcome, 'stale'); // never seen: nothing to reset
 	assert.equal(await store.getPlayer(424242), null);
+});
+
+const queue = require('../src/commands/queue');
+const postJson = (path, body, key = KEY) => fetch(`${base}${path}`, {
+	method: 'POST',
+	headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+	body: JSON.stringify(body),
+});
+
+test('commands: one server claims, only it can finish, finish is final', async () => {
+	const cmd = await queue.enqueue('ban', { username: 'cheater_1', reason: 'aimbot', type: 'normal', by: 'x (Discord)', discordId: '1' }, '1');
+	assert.equal((await postJson('/v1/roblox/commands/claim', {}, KEY)).status, 400);
+	assert.equal((await postJson('/v1/roblox/commands/claim', { serverId: 'A' }, 'nope'.padEnd(40, 'x'))).status, 401);
+	const [a, b] = await Promise.all([
+		postJson('/v1/roblox/commands/claim', { serverId: 'A' }).then((r) => r.json()),
+		postJson('/v1/roblox/commands/claim', { serverId: 'B' }).then((r) => r.json()),
+	]);
+	const claimedBy = [a, b].filter((r) => r.commands.some((c) => c.id === cmd.id));
+	assert.equal(claimedBy.length, 1);
+	const winner = claimedBy[0] === a ? 'A' : 'B';
+	const loser = winner === 'A' ? 'B' : 'A';
+	const waiting = queue.waitFor(cmd.id, 3000);
+	assert.equal((await (await postJson(`/v1/roblox/commands/${cmd.id}/result`, { serverId: loser, ok: true, message: 'x' })).json()).ok, false);
+	assert.equal((await (await postJson(`/v1/roblox/commands/${cmd.id}/result`, { serverId: winner, ok: true, message: 'Banned cheater_1' })).json()).ok, true);
+	const done = await waiting;
+	assert.equal(done.status, 'done');
+	assert.equal(done.result.message, 'Banned cheater_1');
+	// already finished: a second answer changes nothing, and it's never handed out again
+	assert.equal((await (await postJson(`/v1/roblox/commands/${cmd.id}/result`, { serverId: winner, ok: false, message: 'late' })).json()).ok, false);
+	assert.equal((await queue.get(cmd.id)).result.message, 'Banned cheater_1');
+	const again = await (await postJson('/v1/roblox/commands/claim', { serverId: 'C' })).json();
+	assert.ok(!again.commands.some((c) => c.id === cmd.id));
+});
+
+test('commands: an unanswered claim is handed out again, then given up', async () => {
+	const cmd = await queue.enqueue('ban', { username: 'cheater_2', reason: 'fly', type: 'ingame', by: 'x', discordId: '1' }, '1');
+	await queue.claim('A');
+	assert.equal((await queue.claim('B')).length, 0); // still within the timeout
+	await db.query("UPDATE game_commands SET claimed_at = now() - interval '10 minutes' WHERE id = $1", [cmd.id]);
+	assert.deepEqual((await queue.claim('B')).map((c) => c.id), [cmd.id]);
+	await db.query("UPDATE game_commands SET claimed_at = now() - interval '10 minutes', attempts = 3 WHERE id = $1", [cmd.id]);
+	assert.equal((await queue.claim('C')).length, 0);
+	assert.equal((await queue.get(cmd.id)).status, 'failed');
+});
+
+test('logs: auth, validation, clipping, event out', async () => {
+	assert.equal((await postJson('/v1/roblox/logs', { logs: [] })).status, 400);
+	assert.equal((await postJson('/v1/roblox/logs', { logs: [{ channel: 'panel', embed: { title: 'x' } }] }, 'bad'.padEnd(40, 'y'))).status, 401);
+	const got = [];
+	const on = (l) => got.push(...l);
+	events.on('gameLogs', on);
+	const r = await (await postJson('/v1/roblox/logs', { logs: [
+		{ channel: 'anticheat', embed: { title: 'Kicked: x', color: 15158332, fields: [{ name: 'a', value: 'b'.repeat(5000), inline: true }] } },
+		{ channel: 'nope', embed: { title: 'x' } },
+		{ channel: 'panel', embed: {} },
+	] })).json();
+	events.off('gameLogs', on);
+	assert.deepEqual(r, { accepted: 1, rejected: 2 });
+	assert.equal(got.length, 1);
+	assert.equal(got[0].embed.fields[0].value.length, 1024);
 });

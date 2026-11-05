@@ -1,5 +1,8 @@
 // HTTP API for Roblox game servers. Server-to-server only:
 //   POST /v1/roblox/stats   { players: [ { userId, username, kills, wins, deaths, revision } ] }
+//   POST /v1/roblox/logs    { logs: [ { channel: "anticheat" | "panel", embed } ] }
+//   POST /v1/roblox/commands/claim        { serverId }  -> { commands: [ { id, kind, payload } ] }
+//   POST /v1/roblox/commands/:id/result   { serverId, ok, message }
 //   GET  /health
 // Auth: "Authorization: Bearer <key>" where <key> is one of ROBLOX_SYNC_KEYS.
 // The game sends ABSOLUTE saved totals + a forward-only revision, so
@@ -8,8 +11,12 @@ const crypto = require('node:crypto');
 const express = require('express');
 const config = require('../config');
 const store = require('../stats/store');
+const events = require('../events');
+const queue = require('../commands/queue');
+const { validateLog } = require('../logs/sanitize');
 
 const MAX_BATCH = 100;
+const MAX_LOGS = 25;
 
 function keyMatches(given) {
 	if (typeof given !== 'string' || given.length < 32) return false;
@@ -82,6 +89,54 @@ function createApp() {
 			for (const r of results) counts[r.outcome] = (counts[r.outcome] || 0) + 1;
 			console.log(`[api] stats batch of ${results.length}: ${Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ')}`);
 			res.json({ results });
+		},
+	);
+
+	// anti-cheat kicks + staff panel actions -> Discord log channels
+	app.post(
+		'/v1/roblox/logs',
+		rateLimit(300, 60_000),
+		requireGameKey,
+		express.json({ limit: '256kb' }),
+		(req, res) => {
+			const list = Array.isArray(req.body?.logs) ? req.body.logs : null;
+			if (!list || list.length === 0 || list.length > MAX_LOGS) {
+				return res.status(400).json({ error: `logs must be an array of 1-${MAX_LOGS}` });
+			}
+			const logs = list.map(validateLog).filter(Boolean);
+			if (logs.length) events.emit('gameLogs', logs);
+			res.json({ accepted: logs.length, rejected: list.length - logs.length });
+		},
+	);
+
+	const serverIdOf = (body) => (typeof body?.serverId === 'string' && body.serverId.length <= 64 ? body.serverId : null);
+
+	app.post(
+		'/v1/roblox/commands/claim',
+		rateLimit(1200, 60_000),
+		requireGameKey,
+		express.json({ limit: '4kb' }),
+		async (req, res) => {
+			const serverId = serverIdOf(req.body);
+			if (!serverId) return res.status(400).json({ error: 'serverId required' });
+			const commands = await queue.claim(serverId);
+			if (commands.length) console.log(`[api] ${serverId.slice(0, 8)} claimed command(s) ${commands.map((c) => `#${c.id} ${c.kind}`).join(', ')}`);
+			res.json({ commands: commands.map((c) => ({ id: c.id, kind: c.kind, payload: c.payload })) });
+		},
+	);
+
+	app.post(
+		'/v1/roblox/commands/:id/result',
+		rateLimit(600, 60_000),
+		requireGameKey,
+		express.json({ limit: '8kb' }),
+		async (req, res) => {
+			const id = Number(req.params.id);
+			const serverId = serverIdOf(req.body);
+			if (!Number.isSafeInteger(id) || id <= 0 || !serverId) return res.status(400).json({ error: 'bad request' });
+			const cmd = await queue.finish(id, serverId, req.body.ok === true, req.body.message);
+			if (cmd) console.log(`[api] command #${id} ${cmd.status}: ${cmd.result.message}`);
+			res.json({ ok: Boolean(cmd) });
 		},
 	);
 
