@@ -1,0 +1,20 @@
+{
+  "name": "plbr-discord",
+  "version": "1.0.0",
+  "description": "PL:BR Discord bot + stats API",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.28.1",
+    "express": "^5.3.0",
+    "pg": "^8.23.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "private": true
+}
