@@ -38,7 +38,10 @@ function requireGameKey(req, res, next) {
 	const header = req.get('authorization') || '';
 	const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
 	if (!config.robloxSyncKeys.length) return res.status(503).json({ error: 'sync not configured' });
-	if (!keyMatches(token)) return res.status(401).json({ error: 'unauthorized' });
+	if (!keyMatches(token)) {
+		console.warn(`[api] rejected a stats request with a ${token ? 'wrong' : 'missing'} key`);
+		return res.status(401).json({ error: 'unauthorized' });
+	}
 	next();
 }
 
@@ -75,6 +78,9 @@ function createApp() {
 			}
 			// 'stale' and 'rejected' are final answers (the game must not retry
 			// them); only 'error' is worth retrying.
+			const counts = {};
+			for (const r of results) counts[r.outcome] = (counts[r.outcome] || 0) + 1;
+			console.log(`[api] stats batch of ${results.length}: ${Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', ')}`);
 			res.json({ results });
 		},
 	);
