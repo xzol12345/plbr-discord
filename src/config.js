@@ -34,6 +34,10 @@ const config = {
 	winLeaderboardChannelId: str('WIN_LEADERBOARD_CHANNEL_ID'),
 	leaderboardIntervalMinutes: int('LEADERBOARD_INTERVAL_MINUTES', 10),
 	roleReconcileMinutes: int('ROLE_RECONCILE_MINUTES', 30),
+	// welcome DM for new members (needs the Server Members Intent turned on in the Developer Portal)
+	welcomeDms: str('WELCOME_DMS', 'false').toLowerCase() === 'true',
+	// optional: DM this user ID the welcome message once at startup, to preview it
+	welcomeTestUserId: str('WELCOME_TEST_USER_ID'),
 
 	// Bloxlink (server API key from the Bloxlink dashboard)
 	bloxlinkApiKey: str('BLOXLINK_API_KEY'),

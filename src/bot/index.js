@@ -10,6 +10,7 @@ const leaderboards = require('./leaderboards');
 const reconcile = require('../sync/reconcile');
 const store = require('../stats/store');
 const bloxlink = require('../services/bloxlink');
+const welcome = require('./welcome');
 
 async function registerCommands() {
 	const rest = new REST({ version: '10' }).setToken(config.discordToken);
@@ -46,7 +47,10 @@ function createRoleQueue(getGuild) {
 const reverseLookupMiss = new Map(); // robloxId -> time (avoid hammering Bloxlink)
 
 async function startBot() {
-	const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+	// GuildMembers is privileged - only requested when welcome DMs are switched on
+	const intents = [GatewayIntentBits.Guilds];
+	if (config.welcomeDms) intents.push(GatewayIntentBits.GuildMembers);
+	const client = new Client({ intents });
 	let guild = null;
 	const queueRoles = createRoleQueue(() => guild);
 
@@ -62,6 +66,17 @@ async function startBot() {
 		await roles.ensureRoles(guild);
 		await registerCommands().catch((err) => console.error('[bot] command registration failed', err.message));
 		await leaderboards.update(client, { force: true });
+		console.log(`[welcome] welcome DMs are ${config.welcomeDms ? 'ON' : 'off (set WELCOME_DMS=true)'}`);
+		if (config.welcomeTestUserId) {
+			const user = await c.users.fetch(config.welcomeTestUserId).catch(() => null);
+			if (user) await welcome.sendWelcome(user, guild.name);
+			else console.log(`[welcome] test user ${config.welcomeTestUserId} not found`);
+		}
+	});
+
+	client.on(Events.GuildMemberAdd, (member) => {
+		if (!config.welcomeDms || member.guild.id !== config.discordGuildId || member.user.bot) return;
+		welcome.sendWelcome(member.user, member.guild.name);
 	});
 
 	client.on(Events.InteractionCreate, (i) => commands.handle(i));

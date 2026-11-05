@@ -93,3 +93,11 @@ test('/nuke refuses channels it must not touch', () => {
 	assert.match(blockedReason(ch('general', ChannelType.GuildText, false), guild), /Manage Channels/);
 	assert.match(blockedReason(null, guild), /Only text/);
 });
+
+test('welcome DM mentions Bloxlink verification first', () => {
+	const { welcomeMessage } = require('../src/bot/welcome');
+	const text = welcomeMessage('PL:BR').embeds[0].toJSON().description;
+	assert.match(text, /Verify with Bloxlink first/);
+	assert.ok(text.indexOf('/verify') < text.indexOf('/refresh'));
+	assert.ok(text.length < 4096);
+});
