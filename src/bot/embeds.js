@@ -2,7 +2,6 @@
 const { EmbedBuilder } = require('discord.js');
 const config = require('../config');
 const { KILL_TIERS, WIN_TIERS, tierFor, nextTier } = require('../stats/tiers');
-const { formatKd } = require('../stats/kd');
 const roblox = require('../services/roblox');
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
@@ -24,10 +23,10 @@ async function statsEmbed(player, ranks) {
 		.addFields(
 			{ name: '💀 Kills', value: `**${fmt(player.kills)}**`, inline: true },
 			{ name: '🏆 Wins', value: `**${fmt(player.wins)}**`, inline: true },
-			{ name: '☠️ Deaths', value: `**${fmt(player.deaths)}**`, inline: true },
-			{ name: '🎯 K/D Ratio', value: `**${formatKd(player.kills, player.deaths)}**`, inline: true },
+			{ name: '\u200b', value: '\u200b', inline: true }, // keeps a 2 x 2 grid
 			{ name: '📈 Kill Rank', value: `**#${fmt(ranks.kills)}**`, inline: true },
 			{ name: '📈 Win Rank', value: `**#${fmt(ranks.wins)}**`, inline: true },
+			{ name: '\u200b', value: '\u200b', inline: true },
 			{ name: 'Ranks', value: WIN_TIERS.length ? `${killTier ? killTier.name : '—'} • ${winTier ? winTier.name : 'no win rank yet'}` : (killTier ? killTier.name : '—') },
 		);
 	if (avatar) e.setThumbnail(avatar);

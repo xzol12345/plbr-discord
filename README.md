@@ -34,14 +34,15 @@ test/                 npm test (needs TEST_DATABASE_URL)
 
 | Command | What it does |
 |---|---|
-| `/stats [player] [roblox]` | Kills, wins, deaths, K/D, kill rank, win rank, avatar |
+| `/stats [player] [roblox]` | Kills, wins, kill rank, win rank, kill role, avatar |
 | `/leaderboard kills\|wins` | Top 10 |
 | `/rank` | Your kill and win progression, with the next milestone |
 | `/refresh` | Re-checks Bloxlink and saved stats, then fixes your roles (once per minute) |
 | `/link` | How to verify with Bloxlink, or which account you're verified as |
 | `/leaderboard-refresh` | Admins (Manage Server): update the leaderboard channels now |
 
-K/D = kills ÷ deaths. With 0 deaths, the K/D is just the kill count.
+Deaths are still synced and stored, but `/stats` doesn't show deaths or K/D: the game only
+started counting deaths recently, so older totals would be wrong.
 
 ## Roles
 
