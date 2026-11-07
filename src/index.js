@@ -7,6 +7,10 @@ const { createApp } = require('./api/server');
 async function main() {
 	await db.migrate();
 	const app = createApp();
+	// stat snapshots for the farming detection (every synced stats change)
+	const events = require('./events');
+	const farmIngest = require('./farming/ingest');
+	events.on('statsChanged', (p) => farmIngest.snapshot(p).catch((err) => console.warn('[farming] snapshot', err.message)));
 	const server = app.listen(config.port, () => console.log(`[api] listening on :${config.port}`));
 
 	let client = null;

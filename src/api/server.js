@@ -5,6 +5,7 @@
 //   POST /v1/roblox/commands/:id/result   { serverId, ok, message }
 //   POST /v1/roblox/rewards/pending      { userIds: [...] } -> { rewards: [ { id, kind, userId } ] }
 //   POST /v1/roblox/rewards/confirm      { id, userId, serverId }   (the items are in the inventory)
+//   POST /v1/roblox/farm      { events: [ match | kill | win | session ] }  (stat-farming detection)
 //   GET  /health
 // Auth: "Authorization: Bearer <key>" where <key> is one of ROBLOX_SYNC_KEYS.
 // The game sends ABSOLUTE saved totals + a forward-only revision, so
@@ -17,6 +18,7 @@ const events = require('../events');
 const queue = require('../commands/queue');
 const { validateLog } = require('../logs/sanitize');
 const boostRewards = require('../rewards/boost');
+const farmIngest = require('../farming/ingest');
 
 const MAX_BATCH = 100;
 const MAX_LOGS = 25;
@@ -140,6 +142,23 @@ function createApp() {
 			const cmd = await queue.finish(id, serverId, req.body.ok === true, req.body.message);
 			if (cmd) console.log(`[api] command #${id} ${cmd.status}: ${cmd.result.message}`);
 			res.json({ ok: Boolean(cmd) });
+		},
+	);
+
+	// stat-farming detection: server-authoritative match / kill / win / session events
+	app.post(
+		'/v1/roblox/farm',
+		rateLimit(600, 60_000),
+		requireGameKey,
+		express.json({ limit: '128kb' }),
+		async (req, res) => {
+			const list = Array.isArray(req.body?.events) ? req.body.events : null;
+			if (!list || list.length === 0 || list.length > 100) return res.status(400).json({ error: 'events must be an array of 1-100' });
+			const now = Date.now();
+			const valid = list.map((e) => farmIngest.validate(e, now)).filter(Boolean);
+			const players = await farmIngest.store(valid);
+			if (players.length) events.emit('farmActivity', players);
+			res.json({ accepted: valid.length, rejected: list.length - valid.length });
 		},
 	);
 

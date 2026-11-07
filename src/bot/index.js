@@ -19,6 +19,7 @@ const { resultLog } = require('./ban');
 const boost = require('./boost');
 const automod = require('./automod');
 const serverLogs = require('./serverLogs');
+const farming = require('../farming/scanner');
 
 async function registerCommands() {
 	const rest = new REST({ version: '10' }).setToken(config.discordToken);
@@ -109,6 +110,10 @@ async function startBot() {
 					.catch((err) => console.log(`[boost] couldn't send the preview DM to ${user.tag}: ${err.message}`));
 			}
 		}
+		farming.start(async () => {
+			const id = logChannels.channelId('anticheat');
+			return id ? c.channels.fetch(id).catch(() => null) : null;
+		});
 		boost.scanExisting(guild, membersIntent).catch((err) => console.warn('[boost] scan failed', err.message));
 		if (config.welcomeTestUserId) {
 			const user = await c.users.fetch(config.welcomeTestUserId).catch(() => null);
@@ -142,6 +147,8 @@ async function startBot() {
 			boost.check(newMember).catch((err) => console.warn(`[boost] ${newMember.id}: ${err.message}`));
 		}
 	});
+	// new kills / wins arrived: scan those players shortly
+	events.on('farmActivity', (ids) => farming.queue(ids));
 	// the game confirmed the Boost weapons are in their inventory
 	events.on('boostGranted', ({ discordId }) => boost.onGranted(client, discordId));
 

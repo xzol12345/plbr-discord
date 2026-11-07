@@ -52,6 +52,28 @@ The game sends anti-cheat kicks and every Owner / Admin / Content Creator panel 
 `POST /v1/roblox/logs` (same key as the stats). The bot posts them in the anti-cheat and
 Manual channels (`ANTICHEAT_LOG_CHANNEL`, `PANEL_LOG_CHANNEL`). Logs never ping anyone.
 
+## Stat farming / alt farming detection (logs only)
+
+The game's anti-cheat (`Modules.AntiCheatFarming`) sends server-authoritative events to
+`POST /v1/roblox/farm`: match rosters, every elimination (Storm's kill credit), wins and play
+sessions. The bot keeps 30 days of them (`FARM_RETENTION_DAYS`) and scans them
+(`src/farming/`) for:
+
+- **Repeated eliminations:** the same opponent eliminated 10/15/25+ times within 60 minutes
+  (or 30+ in 24 hours). Every elimination timestamp is listed.
+- **One-sided pairs:** two players who meet often, where one almost never wins the fights.
+- **Several accounts feeding one player:** 3+ accounts each eliminated 5+ times in 24 hours,
+  including whether they're young accounts and whether they show up together (a group).
+- **Repeated pairing:** the same two accounts in many small matches.
+- **Stat patterns:** for example 4 kills for 60 wins, big jumps in an hour, kills per hour of
+  tracked play, and win rate.
+
+Indicators add up to a score, giving **Low**, **Medium** or **High**. One weak signal is never
+reported on its own. Each incident is ONE embed in the anti-cheat channel, and it's edited as
+the evidence grows. It is never re-posted while the incident is still going. Every threshold
+can be changed with an environment variable (`src/farming/config.js`). **Nothing is ever done
+to the player:** no kick, no ban, no message, no stat change. Staff review it.
+
 ## Moderation and server logs
 
 - **Auto-moderation** deletes Discord invite links (`discord.gg/`, any `.gg/`, `discord.com/invite/`)
