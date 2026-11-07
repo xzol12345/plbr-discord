@@ -52,6 +52,20 @@ The game sends anti-cheat kicks and every Owner / Admin / Content Creator panel 
 `POST /v1/roblox/logs` (same key as the stats). The bot posts them in the anti-cheat and
 Manual channels (`ANTICHEAT_LOG_CHANNEL`, `PANEL_LOG_CHANNEL`). Logs never ping anyone.
 
+## Moderation and server logs
+
+- **Auto-moderation** deletes Discord invite links (`discord.gg/`, any `.gg/`, `discord.com/invite/`)
+  and slurs, also disguised ones, and DMs the member why. **Anti-spam** spots the same message
+  3+ times within 60 s (`SPAM_REPEATS`, `SPAM_WINDOW_SECONDS`) and deletes all of that member's
+  recent messages. The server owner, administrators and Manage Server members are never moderated.
+- **join-logs:** Discord joins (the bot) and game joins (the game). Each embed says which.
+- **message-logs:** every deleted or edited message, plus what auto-moderation removed.
+- **voice-logs:** joins, leaves and moves between calls, server and self mute and deafen,
+  camera, and screen share.
+
+Needs the **Message Content Intent** (Developer Portal) and the **Manage Messages** and
+**View Audit Log** permissions.
+
 ## Server Booster rewards
 
 Boosting the server (Discord's own boost status / the Server Booster role) earns the

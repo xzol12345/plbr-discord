@@ -37,6 +37,12 @@ const config = {
 	// game log channels: a channel ID or an exact name (unset = guessed from the name)
 	anticheatLogChannel: str('ANTICHEAT_LOG_CHANNEL'),
 	panelLogChannel: str('PANEL_LOG_CHANNEL'),
+	joinLogChannel: str('JOIN_LOG_CHANNEL'),
+	messageLogChannel: str('MESSAGE_LOG_CHANNEL'),
+	voiceLogChannel: str('VOICE_LOG_CHANNEL'),
+	// anti-spam: the same message this many times within the window = spam
+	spamRepeats: int('SPAM_REPEATS', 3),
+	spamWindowSeconds: int('SPAM_WINDOW_SECONDS', 60),
 	// welcome DM for new members (needs the Server Members Intent turned on in the Developer Portal)
 	welcomeDms: str('WELCOME_DMS', 'false').toLowerCase() === 'true',
 	// optional: DM this user ID the welcome message once at startup, to preview it

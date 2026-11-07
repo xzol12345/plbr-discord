@@ -3,7 +3,7 @@
 // from the application's flags, so the bot never fails to log in over it.
 // It powers welcome DMs and instant Server Booster detection; everything
 // else works without it (single members are fetched by id).
-const { Client, GatewayIntentBits, Events, ActivityType, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, Events, ActivityType, REST, Routes, Partials } = require('discord.js');
 const config = require('../config');
 const events = require('../events');
 const commands = require('./commands');
@@ -17,6 +17,8 @@ const welcome = require('./welcome');
 const logChannels = require('./logChannels');
 const { resultLog } = require('./ban');
 const boost = require('./boost');
+const automod = require('./automod');
+const serverLogs = require('./serverLogs');
 
 async function registerCommands() {
 	const rest = new REST({ version: '10' }).setToken(config.discordToken);
@@ -52,24 +54,30 @@ function createRoleQueue(getGuild) {
 
 const reverseLookupMiss = new Map(); // robloxId -> time (avoid hammering Bloxlink)
 
-// Is the Server Members Intent switched on for this application?
-// (application flags: 1<<14 GATEWAY_GUILD_MEMBERS, 1<<15 ..._LIMITED)
-async function membersIntentEnabled() {
+// Which privileged intents are switched on for this application?
+// (application flags: 1<<14 / 1<<15 Server Members, 1<<18 / 1<<19 Message Content)
+async function privilegedIntents() {
 	try {
 		const rest = new REST({ version: '10' }).setToken(config.discordToken);
 		const app = await rest.get(Routes.currentApplication());
-		return Boolean((app.flags ?? 0) & ((1 << 14) | (1 << 15)));
+		const f = app.flags ?? 0;
+		return { members: Boolean(f & ((1 << 14) | (1 << 15))), content: Boolean(f & ((1 << 18) | (1 << 19))) };
 	} catch (err) {
-		console.warn('[bot] couldn\'t read the application flags - starting without the Server Members Intent', err.message);
-		return false;
+		console.warn('[bot] couldn\'t read the application flags - starting without privileged intents', err.message);
+		return { members: false, content: false };
 	}
 }
 
 async function startBot() {
-	const membersIntent = await membersIntentEnabled();
-	const intents = [GatewayIntentBits.Guilds];
+	const privileged = await privilegedIntents();
+	const membersIntent = privileged.members;
+	const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates];
 	if (membersIntent) intents.push(GatewayIntentBits.GuildMembers);
-	const client = new Client({ intents });
+	if (privileged.content) intents.push(GatewayIntentBits.MessageContent);
+	const client = new Client({
+		intents,
+		partials: [Partials.Message, Partials.Channel], // deletes / edits of messages from before a restart still arrive
+	});
 	let guild = null;
 	const queueRoles = createRoleQueue(() => guild);
 
@@ -87,6 +95,11 @@ async function startBot() {
 		await leaderboards.update(client, { force: true });
 		await logChannels.setup(c, guild).catch((err) => console.error('[logs] setup failed', err.message));
 		console.log(`[bot] Server Members Intent is ${membersIntent ? 'ON' : 'off (Developer Portal -> Bot)'}`);
+		console.log(`[bot] Message Content Intent is ${privileged.content ? 'ON - auto-moderation, anti-spam and message logs are active' : 'off (Developer Portal -> Bot) - auto-moderation, anti-spam and message logs can\'t read messages'}`);
+		const me = guild.members.me;
+		for (const [perm, why] of [['ManageMessages', 'delete blocked / spam messages'], ['ViewAuditLog', 'show who server-muted / moved someone in voice logs']]) {
+			if (!me.permissions.has(perm)) console.warn(`[bot] missing the ${perm} permission - needed to ${why}`);
+		}
 		console.log(`[welcome] welcome DMs are ${config.welcomeDms && membersIntent ? 'ON' : config.welcomeDms ? 'waiting for the Server Members Intent' : 'off (set WELCOME_DMS=true)'}`);
 		if (config.boostTestUserId) {
 			const user = await c.users.fetch(config.boostTestUserId).catch(() => null);
@@ -108,6 +121,14 @@ async function startBot() {
 	events.on('gameLogs', (logs) => { for (const l of logs) logChannels.push(l.channel, l.embed); });
 	// every finished Discord /ban is also logged in the Manual channel
 	events.on('commandFinished', (cmd) => { if (cmd.kind === 'ban') logChannels.push('panel', resultLog(cmd)); });
+
+	// moderation + server logs
+	client.on(Events.MessageCreate, (m) => { if (privileged.content) automod.handleMessage(m).catch((err) => console.warn('[automod]', err.message)); });
+	client.on(Events.MessageDelete, (m) => { try { serverLogs.onMessageDelete(m); } catch (err) { console.warn('[logs] delete', err.message); } });
+	client.on(Events.MessageBulkDelete, (msgs, ch) => { try { serverLogs.onMessageBulkDelete(msgs, ch); } catch (err) { console.warn('[logs] bulk', err.message); } });
+	client.on(Events.MessageUpdate, (a, b) => { try { serverLogs.onMessageUpdate(a, b); } catch (err) { console.warn('[logs] edit', err.message); } });
+	client.on(Events.VoiceStateUpdate, (a, b) => { serverLogs.onVoiceState(a, b).catch((err) => console.warn('[logs] voice', err.message)); });
+	client.on(Events.GuildMemberAdd, (member) => { try { serverLogs.onMemberJoin(member); } catch (err) { console.warn('[logs] join', err.message); } });
 
 	client.on(Events.GuildMemberAdd, (member) => {
 		if (!config.welcomeDms || member.guild.id !== config.discordGuildId || member.user.bot) return;

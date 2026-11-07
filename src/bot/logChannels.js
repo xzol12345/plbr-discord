@@ -9,10 +9,13 @@ const config = require('../config');
 const KINDS = {
 	anticheat: { setting: () => config.anticheatLogChannel, guess: (n) => n.includes('anti') && n.includes('cheat'), label: 'ANTICHEAT_LOG_CHANNEL' },
 	panel: { setting: () => config.panelLogChannel, guess: (n) => n.includes('manual'), label: 'PANEL_LOG_CHANNEL' },
+	joins: { setting: () => config.joinLogChannel, guess: (n) => n.includes('join') && n.includes('log'), label: 'JOIN_LOG_CHANNEL' },
+	messages: { setting: () => config.messageLogChannel, guess: (n) => n.includes('message') && n.includes('log'), label: 'MESSAGE_LOG_CHANNEL' },
+	voice: { setting: () => config.voiceLogChannel, guess: (n) => n.includes('voice') && n.includes('log'), label: 'VOICE_LOG_CHANNEL' },
 };
 
 const channelIds = {}; // kind -> channel id
-const queues = { anticheat: [], panel: [] };
+const queues = { anticheat: [], panel: [], joins: [], messages: [], voice: [] };
 let client = null;
 let flushing = false;
 const MAX_QUEUE = 300;
@@ -81,4 +84,7 @@ async function flush() {
 
 setInterval(flush, 15_000).unref();
 
-module.exports = { setup, push, channelId: (kind) => channelIds[kind] || null };
+// is this one of the bot's log channels? (their own messages aren't re-logged)
+const isLogChannel = (id) => Object.values(channelIds).includes(id);
+
+module.exports = { setup, push, isLogChannel, channelId: (kind) => channelIds[kind] || null };

@@ -1,7 +1,7 @@
 // Game -> Discord log embeds. The game is trusted (it holds the sync key),
 // but every embed is still rebuilt from known fields and clipped to Discord's
 // limits, so a bad payload can't break a message.
-const CHANNELS = new Set(['anticheat', 'panel']);
+const CHANNELS = new Set(['anticheat', 'panel', 'joins']);
 
 const clip = (v, n) => {
 	const s = String(v ?? '').trim();
