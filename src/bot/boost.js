@@ -109,10 +109,32 @@ async function verify(discordId) {
 	return value;
 }
 
+// startup: how the Server Booster role is set up (perks live in channel permissions)
+function describePerks(guild) {
+	const role = guild.roles.premiumSubscriberRole;
+	if (!role) { console.log('[boost] this server has no Server Booster role yet (appears after the first boost)'); return; }
+	const { PermissionFlagsBits: P, ChannelType } = require('discord.js');
+	const text = guild.channels.cache.filter((c) => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement);
+	const pics = [];
+	const giveaways = [];
+	for (const c of text.values()) {
+		const everyone = c.permissionsFor(guild.roles.everyone);
+		const booster = c.permissionsFor(role);
+		if (/giveaway/i.test(c.name)) giveaways.push(`#${c.name} (boosters ${booster?.has(P.ViewChannel) ? 'CAN' : "can't"} see it, everyone ${everyone?.has(P.ViewChannel) ? 'can' : "can't"})`);
+		if (everyone?.has(P.ViewChannel) && everyone?.has(P.SendMessages) && !everyone.has(P.AttachFiles)) {
+			pics.push(`#${c.name}: boosters ${booster?.has(P.AttachFiles) ? 'CAN' : "can't"} post pictures`);
+		}
+	}
+	console.log(`[boost] Server Booster role: "${role.name}" (${role.id}), ${role.members.size} cached member(s)`);
+	console.log(`[boost] giveaway channels: ${giveaways.join('; ') || 'none found'}`);
+	console.log(`[boost] chat channels where @everyone can't post pictures: ${pics.join('; ') || 'none'}`);
+}
+
 // startup: every current booster (needs the Server Members Intent to list them)
 async function scanExisting(guild, membersIntent) {
 	guildRef = guild;
 	rewards.setVerifier(verify);
+	try { describePerks(guild); } catch (err) { console.warn('[boost] perk check failed', err.message); }
 	if (!membersIntent) {
 		console.log('[boost] Server Members Intent is off - boosts are picked up through /link, /refresh and the 30-minute re-check (turn the intent on for instant thank-you DMs)');
 		return;
