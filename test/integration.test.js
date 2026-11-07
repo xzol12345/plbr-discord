@@ -22,7 +22,7 @@ let server;
 let base;
 
 test.before(async () => {
-	await db.query('DROP TABLE IF EXISTS players, links, sync_log, bot_state, game_commands, schema_migrations CASCADE');
+	await db.query('DROP TABLE IF EXISTS players, links, sync_log, bot_state, game_commands, boost_rewards, schema_migrations CASCADE');
 	await db.migrate();
 	server = createApp().listen(0);
 	base = `http://127.0.0.1:${server.address().port}`;
@@ -222,4 +222,54 @@ test('logs: auth, validation, clipping, event out', async () => {
 	assert.deepEqual(r, { accepted: 1, rejected: 2 });
 	assert.equal(got.length, 1);
 	assert.equal(got[0].embed.fields[0].value.length, 1024);
+});
+
+const boostRewards = require('../src/rewards/boost');
+
+test('boost rewards: only current boosters, granted once per member and per Roblox account', async () => {
+	const boosting = new Map([['111111', true], ['222222', true], ['333333', false]]);
+	boostRewards.setVerifier(async (id) => boosting.get(id) ?? false);
+	// A: linked booster. B: booster, not linked yet. C: stopped boosting before playing.
+	assert.equal((await boostRewards.recordBooster('111111', 5001)).isNew, true);
+	assert.equal((await boostRewards.recordBooster('111111', 5001)).isNew, false); // seen again: same row
+	await boostRewards.recordBooster('222222', null);
+	await boostRewards.recordBooster('333333', 5003);
+
+	let r = await (await postJson('/v1/roblox/rewards/pending', { userIds: [5001, 5002, 5003] })).json();
+	assert.deepEqual(r.rewards, [{ id: '111111', kind: 'boost', userId: 5001 }]); // B has no link, C isn't boosting
+	assert.equal((await postJson('/v1/roblox/rewards/pending', { userIds: [-1] })).status, 400);
+	assert.equal((await postJson('/v1/roblox/rewards/pending', { userIds: [1] }, 'x'.repeat(40))).status, 401);
+
+	// B links later -> now pending for their account
+	await boostRewards.recordBooster('222222', 5002);
+	r = await (await postJson('/v1/roblox/rewards/pending', { userIds: [5002] })).json();
+	assert.deepEqual(r.rewards.map((x) => x.id), ['222222']);
+
+	// the game confirms A; a retry is fine; confirming for a different account is refused
+	const granted = [];
+	const on = (e) => granted.push(e);
+	events.on('boostGranted', on);
+	assert.equal((await (await postJson('/v1/roblox/rewards/confirm', { id: '111111', userId: 5001, serverId: 'S' })).json()).ok, true);
+	assert.equal((await (await postJson('/v1/roblox/rewards/confirm', { id: '111111', userId: 5001, serverId: 'S' })).json()).ok, true);
+	assert.equal((await (await postJson('/v1/roblox/rewards/confirm', { id: '111111', userId: 9999, serverId: 'S' })).json()).ok, false);
+	events.off('boostGranted', on);
+	assert.equal(granted.length, 1);
+	r = await (await postJson('/v1/roblox/rewards/pending', { userIds: [5001] })).json();
+	assert.equal(r.rewards.length, 0);
+
+	// A switches their link after the grant: the reward stays where it went (no second copy)
+	await boostRewards.recordBooster('111111', 7777);
+	assert.equal(Number((await boostRewards.get('111111')).roblox_user_id), 5001);
+
+	// another member linked to the SAME Roblox account can't get a second copy
+	boosting.set('444444', true);
+	await boostRewards.recordBooster('444444', 5001);
+	r = await (await postJson('/v1/roblox/rewards/pending', { userIds: [5001] })).json();
+	assert.equal(r.rewards.length, 0);
+	assert.equal((await boostRewards.confirmGranted('444444', 5001)).newly, false);
+
+	// Discord unreachable (verifier says unknown) -> nothing is handed out
+	boostRewards.setVerifier(async () => null);
+	r = await (await postJson('/v1/roblox/rewards/pending', { userIds: [5002] })).json();
+	assert.equal(r.rewards.length, 0);
 });

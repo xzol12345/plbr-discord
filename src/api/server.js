@@ -3,6 +3,8 @@
 //   POST /v1/roblox/logs    { logs: [ { channel: "anticheat" | "panel", embed } ] }
 //   POST /v1/roblox/commands/claim        { serverId }  -> { commands: [ { id, kind, payload } ] }
 //   POST /v1/roblox/commands/:id/result   { serverId, ok, message }
+//   POST /v1/roblox/rewards/pending      { userIds: [...] } -> { rewards: [ { id, kind, userId } ] }
+//   POST /v1/roblox/rewards/confirm      { id, userId, serverId }   (the items are in the inventory)
 //   GET  /health
 // Auth: "Authorization: Bearer <key>" where <key> is one of ROBLOX_SYNC_KEYS.
 // The game sends ABSOLUTE saved totals + a forward-only revision, so
@@ -14,6 +16,7 @@ const store = require('../stats/store');
 const events = require('../events');
 const queue = require('../commands/queue');
 const { validateLog } = require('../logs/sanitize');
+const boostRewards = require('../rewards/boost');
 
 const MAX_BATCH = 100;
 const MAX_LOGS = 25;
@@ -137,6 +140,40 @@ function createApp() {
 			const cmd = await queue.finish(id, serverId, req.body.ok === true, req.body.message);
 			if (cmd) console.log(`[api] command #${id} ${cmd.status}: ${cmd.result.message}`);
 			res.json({ ok: Boolean(cmd) });
+		},
+	);
+
+	// Server Booster rewards: the game asks for its online players, grants, confirms
+	app.post(
+		'/v1/roblox/rewards/pending',
+		rateLimit(1200, 60_000),
+		requireGameKey,
+		express.json({ limit: '16kb' }),
+		async (req, res) => {
+			const ids = Array.isArray(req.body?.userIds) ? req.body.userIds : null;
+			if (!ids || ids.length > 100 || !ids.every((n) => Number.isSafeInteger(n) && n > 0)) {
+				return res.status(400).json({ error: 'userIds must be 0-100 Roblox UserIds' });
+			}
+			res.json({ rewards: await boostRewards.pendingFor([...new Set(ids)]) });
+		},
+	);
+
+	app.post(
+		'/v1/roblox/rewards/confirm',
+		rateLimit(600, 60_000),
+		requireGameKey,
+		express.json({ limit: '4kb' }),
+		async (req, res) => {
+			const { id, userId } = req.body || {};
+			if (typeof id !== 'string' || !/^\d{5,25}$/.test(id) || !Number.isSafeInteger(userId) || userId <= 0) {
+				return res.status(400).json({ error: 'bad request' });
+			}
+			const result = await boostRewards.confirmGranted(id, userId);
+			if (result.newly) {
+				console.log(`[boost] reward granted in game: Discord ${id} -> Roblox ${userId}`);
+				events.emit('boostGranted', { discordId: id, robloxId: userId });
+			}
+			res.json({ ok: result.ok });
 		},
 	);
 

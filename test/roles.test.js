@@ -112,3 +112,16 @@ test('/ban input checks', () => {
 	assert.match(validate('Good_Name1', '  ', 'normal'), /reason/);
 	assert.match(validate('Good_Name1', 'x', 'perma'), /Unknown/);
 });
+
+test('booster detection + DM text', () => {
+	const { isBoosting, thankYouEmbed } = require('../src/bot/boost');
+	const role = { id: 'boostrole' };
+	const m = (since, hasRole) => ({ premiumSinceTimestamp: since, guild: { roles: { premiumSubscriberRole: role } }, roles: { cache: { has: (id) => hasRole && id === 'boostrole' } } });
+	assert.equal(isBoosting(m(123, false)), true);
+	assert.equal(isBoosting(m(null, true)), true);
+	assert.equal(isBoosting(m(null, false)), false);
+	assert.equal(isBoosting(null), false);
+	const text = thankYouEmbed().toJSON().description;
+	for (const s of ['Picture Permissions', 'Exclusive Giveaways', 'Boost FAL', 'Boost AA-12', '/link', '/verify']) assert.ok(text.includes(s), s);
+	assert.ok(text.length < 4096);
+});

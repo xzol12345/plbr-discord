@@ -1,5 +1,8 @@
-// The PL:BR Discord bot. Intents: Guilds only (no privileged intents -
-// single members are fetched by id when their roles need updating).
+// The PL:BR Discord bot. Intents: Guilds, plus Server Members (privileged)
+// ONLY when it's switched on in the Developer Portal - checked at startup
+// from the application's flags, so the bot never fails to log in over it.
+// It powers welcome DMs and instant Server Booster detection; everything
+// else works without it (single members are fetched by id).
 const { Client, GatewayIntentBits, Events, ActivityType, REST, Routes } = require('discord.js');
 const config = require('../config');
 const events = require('../events');
@@ -13,6 +16,7 @@ const bloxlink = require('../services/bloxlink');
 const welcome = require('./welcome');
 const logChannels = require('./logChannels');
 const { resultLog } = require('./ban');
+const boost = require('./boost');
 
 async function registerCommands() {
 	const rest = new REST({ version: '10' }).setToken(config.discordToken);
@@ -48,10 +52,23 @@ function createRoleQueue(getGuild) {
 
 const reverseLookupMiss = new Map(); // robloxId -> time (avoid hammering Bloxlink)
 
+// Is the Server Members Intent switched on for this application?
+// (application flags: 1<<14 GATEWAY_GUILD_MEMBERS, 1<<15 ..._LIMITED)
+async function membersIntentEnabled() {
+	try {
+		const rest = new REST({ version: '10' }).setToken(config.discordToken);
+		const app = await rest.get(Routes.currentApplication());
+		return Boolean((app.flags ?? 0) & ((1 << 14) | (1 << 15)));
+	} catch (err) {
+		console.warn('[bot] couldn\'t read the application flags - starting without the Server Members Intent', err.message);
+		return false;
+	}
+}
+
 async function startBot() {
-	// GuildMembers is privileged - only requested when welcome DMs are switched on
+	const membersIntent = await membersIntentEnabled();
 	const intents = [GatewayIntentBits.Guilds];
-	if (config.welcomeDms) intents.push(GatewayIntentBits.GuildMembers);
+	if (membersIntent) intents.push(GatewayIntentBits.GuildMembers);
 	const client = new Client({ intents });
 	let guild = null;
 	const queueRoles = createRoleQueue(() => guild);
@@ -69,7 +86,9 @@ async function startBot() {
 		await registerCommands().catch((err) => console.error('[bot] command registration failed', err.message));
 		await leaderboards.update(client, { force: true });
 		await logChannels.setup(c, guild).catch((err) => console.error('[logs] setup failed', err.message));
-		console.log(`[welcome] welcome DMs are ${config.welcomeDms ? 'ON' : 'off (set WELCOME_DMS=true)'}`);
+		console.log(`[bot] Server Members Intent is ${membersIntent ? 'ON' : 'off (Developer Portal -> Bot)'}`);
+		console.log(`[welcome] welcome DMs are ${config.welcomeDms && membersIntent ? 'ON' : config.welcomeDms ? 'waiting for the Server Members Intent' : 'off (set WELCOME_DMS=true)'}`);
+		boost.scanExisting(guild, membersIntent).catch((err) => console.warn('[boost] scan failed', err.message));
 		if (config.welcomeTestUserId) {
 			const user = await c.users.fetch(config.welcomeTestUserId).catch(() => null);
 			if (user) await welcome.sendWelcome(user, guild.name);
@@ -86,6 +105,16 @@ async function startBot() {
 		if (!config.welcomeDms || member.guild.id !== config.discordGuildId || member.user.bot) return;
 		welcome.sendWelcome(member.user, member.guild.name);
 	});
+
+	// a member started boosting (Discord sets premiumSince + the Server Booster role)
+	client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
+		if (newMember.guild.id !== config.discordGuildId || newMember.user.bot) return;
+		if (boost.isBoosting(newMember) && !boost.isBoosting(oldMember)) {
+			boost.check(newMember).catch((err) => console.warn(`[boost] ${newMember.id}: ${err.message}`));
+		}
+	});
+	// the game confirmed the Boost weapons are in their inventory
+	events.on('boostGranted', ({ discordId }) => boost.onGranted(client, discordId));
 
 	client.on(Events.InteractionCreate, (i) => commands.handle(i));
 	client.on(Events.Error, (err) => console.error('[bot] client error', err.message));
@@ -119,6 +148,11 @@ async function startBot() {
 			for (const { discordId, robloxId } of await linking.allLinks()) {
 				const player = (await reconcile.refreshFromOpenCloud(robloxId).catch(() => null)) || (await store.getPlayer(robloxId));
 				if (player) queueRoles(discordId, player);
+				// Server Booster rewards for linked members (works without the members intent)
+				if (guild) {
+					const member = await guild.members.fetch(discordId).catch(() => null);
+					if (member) await boost.check(member, { robloxId }).catch((err) => console.warn(`[boost] ${discordId}: ${err.message}`));
+				}
 				await new Promise((r) => setTimeout(r, 400));
 			}
 			await store.trimLog(14);

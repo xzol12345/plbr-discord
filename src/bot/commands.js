@@ -11,6 +11,7 @@ const reconcile = require('../sync/reconcile');
 const { BloxlinkError } = require('../services/bloxlink');
 const { nuke } = require('./nuke');
 const { ban } = require('./ban');
+const boost = require('./boost');
 
 const definitions = [
 	new SlashCommandBuilder().setName('stats').setDescription('View PL:BR statistics')
@@ -102,10 +103,13 @@ const handlers = {
 		const player = (await reconcile.refreshFromOpenCloud(robloxId).catch(() => null)) || (await store.getPlayer(robloxId));
 		if (!player) return i.editReply({ embeds: [embeds.infoEmbed('No stats yet', 'Your Roblox account is linked, but no PL:BR stats have synced yet - play a match!')] });
 		const r = await roles.syncMember(i.guild, i.user.id, player);
+		const boostState = await boost.check(i.member, { robloxId }).catch(() => null);
 		const changes = [
 			r.added.length ? `Added: **${r.added.join(', ')}**` : null,
 			r.removed.length ? `Removed: ${r.removed.join(', ')}` : null,
 			r.blocked?.length ? `⚠️ I can't manage: ${r.blocked.join(', ')} (my role must be above them)` : null,
+			boostState === 'waiting-for-game' ? '💗 Server Booster: your **Boost FAL** + **Boost AA-12** will be added the next time you\'re in PL:BR.' : null,
+			boostState === 'granted' ? '💗 Server Booster: your Boost weapons are already in your inventory.' : null,
 		].filter(Boolean).join('\n') || 'Your roles were already up to date.';
 		return i.editReply({ embeds: [embeds.infoEmbed(`Refreshed — ${player.username}`, changes), await embeds.statsEmbed(player, await ranksFor(player))] });
 	},
@@ -117,7 +121,11 @@ const handlers = {
 		if (robloxId) {
 			const player = await playerFor(robloxId);
 			if (player) await roles.syncMember(i.guild, i.user.id, player);
-			return i.editReply({ embeds: [embeds.infoEmbed('✅ Linked', `You're verified as Roblox user **${player?.username || robloxId}** (ID \`${robloxId}\`).\nTo switch accounts, run Bloxlink's **/verify** again, then **/refresh** here.`)] });
+			const boostState = await boost.check(i.member, { robloxId }).catch(() => null);
+			const boostLine = boostState === 'waiting-for-game'
+				? '\n\n💗 **Server Booster:** your **Boost FAL** + **Boost AA-12** will be added to your inventory the next time you\'re in PL:BR.'
+				: boostState === 'granted' ? '\n\n💗 **Server Booster:** your Boost weapons are already in your inventory.' : '';
+			return i.editReply({ embeds: [embeds.infoEmbed('✅ Linked', `You're verified as Roblox user **${player?.username || robloxId}** (ID \`${robloxId}\`).\nTo switch accounts, run Bloxlink's **/verify** again, then **/refresh** here.${boostLine}`)] });
 		}
 		return i.editReply({ embeds: [embeds.infoEmbed('🔗 Link your Roblox account', [
 			'PL:BR uses **Bloxlink** to verify accounts:',

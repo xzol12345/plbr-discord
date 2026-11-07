@@ -52,6 +52,21 @@ The game sends anti-cheat kicks and every Owner / Admin / Content Creator panel 
 `POST /v1/roblox/logs` (same key as the stats). The bot posts them in the anti-cheat and
 Manual channels (`ANTICHEAT_LOG_CHANNEL`, `PANEL_LOG_CHANNEL`). Logs never ping anyone.
 
+## Server Booster rewards
+
+Boosting the server (Discord's own boost status / the Server Booster role) earns the
+**Boost FAL** and **Boost AA-12** in game, plus a one-time thank-you DM.
+
+1. The bot sees the boost (instantly with the Server Members Intent on; otherwise via
+   `/link`, `/refresh` and the 30-minute re-check of linked members) and records it.
+2. If the member's Roblox account is linked, the reward waits for that **Roblox UserId**;
+   if not, it waits until they `/link`.
+3. Game servers ask `POST /v1/roblox/rewards/pending` for their online players, grant the
+   skins through the inventory (skipping anything already owned), then confirm with
+   `POST /v1/roblox/rewards/confirm`. The bot re-checks with Discord that the member is
+   still boosting before handing anything out.
+4. Granted once per member and once per Roblox account. Items are never taken back.
+
 ## Roles
 
 There are two independent progressions (`src/stats/tiers.js`). Each player holds at most
