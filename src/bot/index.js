@@ -88,6 +88,14 @@ async function startBot() {
 		await logChannels.setup(c, guild).catch((err) => console.error('[logs] setup failed', err.message));
 		console.log(`[bot] Server Members Intent is ${membersIntent ? 'ON' : 'off (Developer Portal -> Bot)'}`);
 		console.log(`[welcome] welcome DMs are ${config.welcomeDms && membersIntent ? 'ON' : config.welcomeDms ? 'waiting for the Server Members Intent' : 'off (set WELCOME_DMS=true)'}`);
+		if (config.boostTestUserId) {
+			const user = await c.users.fetch(config.boostTestUserId).catch(() => null);
+			if (user) {
+				await user.send({ embeds: [boost.thankYouEmbed()] })
+					.then(() => console.log(`[boost] preview thank-you DM sent to ${user.tag}`))
+					.catch((err) => console.log(`[boost] couldn't send the preview DM to ${user.tag}: ${err.message}`));
+			}
+		}
 		boost.scanExisting(guild, membersIntent).catch((err) => console.warn('[boost] scan failed', err.message));
 		if (config.welcomeTestUserId) {
 			const user = await c.users.fetch(config.welcomeTestUserId).catch(() => null);

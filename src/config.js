@@ -41,6 +41,8 @@ const config = {
 	welcomeDms: str('WELCOME_DMS', 'false').toLowerCase() === 'true',
 	// optional: DM this user ID the welcome message once at startup, to preview it
 	welcomeTestUserId: str('WELCOME_TEST_USER_ID'),
+	// optional: DM this user ID the Server Booster thank-you message once at startup, to preview it
+	boostTestUserId: str('BOOST_TEST_USER_ID'),
 
 	// Bloxlink (server API key from the Bloxlink dashboard)
 	bloxlinkApiKey: str('BLOXLINK_API_KEY'),
